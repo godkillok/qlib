@@ -1,15 +1,14 @@
-import qlib
-from qlib.data import D
-from qlib.constant import REG_CN
-import plotly.graph_objects as go
-import pandas as pd
-import talib
-from talib import RSI, MACD, STOCH
 import dash
-from dash import dcc, html, Input, Output, callback, State
-from plotly.subplots import make_subplots
 import numpy as np
-from datetime import datetime
+import pandas as pd
+import plotly.graph_objects as go
+import talib
+from dash import dcc, html, Input, Output, callback, State
+from talib import RSI, MACD, STOCH
+
+import qlib
+from qlib.constant import REG_CN
+from qlib.data import D
 
 # 初始化QLib数据源
 provider_uri = "/Users/tanggp/qlib_data/"
@@ -20,8 +19,8 @@ stocks = [
     {'code': 'sh601012', 'name': '隆基绿能'},
     {'code': 'sh600519', 'name': '贵州茅台'},
     {'code': 'sz300750', 'name': '宁德时代'},
-    {'code': 'sh688041', 'name': '贵州'},
-    {'code': 'sz000158', 'name': '宁'}
+    {'code': 'sh688041', 'name': '海光信息'},
+    {'code': 'sz000858', 'name': '五粮液'}
 ]
 
 
@@ -99,7 +98,10 @@ app.layout = html.Div([
                             ) for s in stocks
                         ])
                     ])
-                ], style={'width': '100%'})
+                ], style={'width': '100%',
+                          'max-height': '300px',  # 固定高度
+            'overflow-y': 'auto'  # 垂直滚动
+                 })
             ], style={'margin': '20px 0'}),
 
             # 时间周期选择
@@ -342,6 +344,9 @@ def update_main_chart(data, period, indicators):
         # 获取抽样后的日期和标签
         tick_dates, tick_labels = smart_sample(df['date'])
 
+        # all_values = np.concatenate([trace.y for trace in fig.data])
+        # y_range = get_dynamic_range(all_values)
+
         fig.update_layout(
             xaxis=dict(
                 type='category',
@@ -349,7 +354,7 @@ def update_main_chart(data, period, indicators):
                 tickvals=tick_dates,
                 ticktext=tick_labels,
                 tickangle=-45,
-                rangeslider_visible=True
+                rangeslider_visible=False
             ),
             margin=dict(l=20, r=20, t=50, b=20),
             showlegend=True,
@@ -364,11 +369,43 @@ def update_main_chart(data, period, indicators):
     # 回调函数：更新子图1
 
 
+# 在现有代码中添加以下回调函数
 @callback(
-    Output('sub-chart1', 'figure'),
+    [Output('sub-chart1', 'figure'),
+     Output('sub-chart2', 'figure')],
+    [Input('main-chart', 'relayoutData')],
+    [State('sub-chart1', 'figure'),
+     State('sub-chart2', 'figure'),
+     State('stock-data', 'data')],
+    prevent_initial_call=True
+)
+def sync_charts(relayout_data, fig1, fig2, stock_data):
+    if not relayout_data or not stock_data:
+        return dash.no_update, dash.no_update
+
+    # 只处理x轴范围变化的情况
+    if 'xaxis.range[0]' in relayout_data:
+        x_range = [relayout_data['xaxis.range[0]'], relayout_data['xaxis.range[1]']]
+
+        # 更新子图1
+        if fig1:
+            fig1['layout']['xaxis']['range'] = x_range
+            fig1['layout']['xaxis']['autorange'] = False
+
+        # 更新子图2
+        if fig2:
+            fig2['layout']['xaxis']['range'] = x_range
+            fig2['layout']['xaxis']['autorange'] = False
+
+    return fig1, fig2
+
+@callback(
+    Output('sub-chart1', 'figure', allow_duplicate=True),
     [Input('stock-data', 'data'),
      Input('period-selector', 'value'),
-     Input('subchart1-selector', 'value')]
+     Input('subchart1-selector', 'value'),
+
+],     prevent_initial_call=True
 )
 def update_subchart1(data, period, indicator):
     if not data:
@@ -419,6 +456,8 @@ def update_subchart1(data, period, indicator):
 
         fig.update_layout(
             xaxis=dict(
+                type='category',
+                tickmode='array',
                 showticklabels=False,
                 showline=True,
                 linecolor='lightgray',
@@ -434,12 +473,23 @@ def update_subchart1(data, period, indicator):
         print(f"Error updating subchart1: {str(e)}")
         return go.Figure()
 
+def get_dynamic_range(values, margin=0.1):
+    """计算带边距的动态范围"""
+    v_min = min(values)
+    v_max = max(values)
+    span = v_max - v_min
+    return [
+        v_min - span * margin,
+        v_max + span * margin
+    ]
+
+
 # 回调函数：更新子图2
 @callback(
-    Output('sub-chart2', 'figure'),
+    Output('sub-chart2', 'figure',allow_duplicate=True),
     [Input('stock-data', 'data'),
      Input('period-selector', 'value'),
-     Input('subchart2-selector', 'value')]
+     Input('subchart2-selector', 'value'),],     prevent_initial_call=True
 )
 def update_subchart2(data, period, indicator):
     # 重用update_subchart1的逻辑
