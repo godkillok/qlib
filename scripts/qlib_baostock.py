@@ -95,15 +95,20 @@ class QlibBaostockIntegration:
     def _get_symbols(self) -> List[str]:
         """获取目标股票列表（动态更新成分股）"""
         date = self._get_last_trading_date()
+        # extra=[ "sh000300"
+        # ]
+        #
+        # extra=[self._convert_code_format(i) for i in extra]
+        extra=[]
         if self.cfg.MARKET == "csi300":
             rs = bs.query_hs300_stocks(date=date)
-            return [self._convert_code_format(row[1]) for row in rs.data]
+            return extra+[self._convert_code_format(row[1]) for row in rs.data]
         elif self.cfg.MARKET == "csi500":
             rs = bs.query_zz500_stocks(date=date)
-            return [self._convert_code_format(row[1]) for row in rs.data]
+            return extra+[self._convert_code_format(row[1]) for row in rs.data]
         else:
             rs = bs.query_all_stock(day=date)
-            return [self._convert_code_format(row[0]) for row in rs.data]
+            return extra+[self._convert_code_format(row[0]) for row in rs.data]
 
 
 
@@ -131,7 +136,7 @@ class QlibBaostockIntegration:
                 df["date"] = pd.to_datetime(df["date"])
                 return df.sort_values("date")
             except Exception as e:
-                logging.warning(f"下载 {symbol} 失败: {str(e)}")
+                print(f"下载 {symbol} 失败: {str(e)}")
                 time.sleep(1)
         return None
 
