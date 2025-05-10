@@ -196,7 +196,7 @@ class QlibBaostockIntegration:
             logging.info("无新交易日数据")
             return
 
-        下载增量数据
+        #下载增量数据
         symbols = self._get_symbols()
         for symbol in tqdm(symbols, desc="股票下载进度", unit="只"):
             csv_path = self.raw_data_dir / f"{symbol}.csv"
