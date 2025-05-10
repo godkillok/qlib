@@ -7,6 +7,7 @@ from pathlib import Path
 from datetime import datetime, timedelta
 from typing import List, Optional
 import sys
+import  time
 from tqdm import tqdm  # 导入tqdm
 print(Path(__file__).resolve().parent.joinpath("scripts"))
 '''
@@ -29,8 +30,8 @@ class Config:
     RAW_DATA_DIR = "~/qlib_raw"  # 原始CSV数据目录
     FREQ = "d"  # 数据频率: d/1m/5m
 
-    # 市场类型 (all/csi300/csi500)
-    MARKET ="all"# "csi300"
+    # 市场类型 (all/csi300/csi500)"all"#
+    MARKET = "all"#"csi300"
 
     # 网络请求参数
     MAX_RETRY = 3  # 单只股票下载重试次数
@@ -170,6 +171,7 @@ class QlibBaostockIntegration:
             qlib_dir=str(self.qlib_dir),
             freq="day",
             date_field_name="date",
+            instrucment_file_name=self.cfg.MARKET,
             symbol_field_name="symbol",
             exclude_fields="code,symbol",
         ).dump()

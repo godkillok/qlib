@@ -27,8 +27,6 @@ class DumpDataBase:
     DAILY_FORMAT = "%Y-%m-%d"
     HIGH_FREQ_FORMAT = "%Y-%m-%d %H:%M:%S"
     INSTRUMENTS_SEP = "\t"
-    INSTRUMENTS_FILE_NAME = "all.txt"
-
     UPDATE_MODE = "update"
     ALL_MODE = "all"
 
@@ -41,6 +39,7 @@ class DumpDataBase:
         max_workers: int = 16,
         date_field_name: str = "date",
         file_suffix: str = ".csv",
+        instrucment_file_name: str="default",
         symbol_field_name: str = "symbol",
         exclude_fields: str = "",
         include_fields: str = "",
@@ -78,6 +77,7 @@ class DumpDataBase:
             exclude_fields = exclude_fields.split(",")
         if isinstance(include_fields, str):
             include_fields = include_fields.split(",")
+        self.INSTRUMENTS_FILE_NAME=instrucment_file_name+".txt"
         self._exclude_fields = tuple(filter(lambda x: len(x) > 0, map(str.strip, exclude_fields)))
         self._include_fields = tuple(filter(lambda x: len(x) > 0, map(str.strip, include_fields)))
         self.file_suffix = file_suffix
