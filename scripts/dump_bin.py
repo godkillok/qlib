@@ -367,6 +367,7 @@ class DumpDataUpdate(DumpDataBase):
         date_field_name: str = "date",
         file_suffix: str = ".csv",
         symbol_field_name: str = "symbol",
+        instrucment_file_name: str = "symbol",
         exclude_fields: str = "",
         include_fields: str = "",
         limit_nums: int = None,
@@ -406,9 +407,11 @@ class DumpDataUpdate(DumpDataBase):
             max_workers,
             date_field_name,
             file_suffix,
+            instrucment_file_name,
             symbol_field_name,
             exclude_fields,
             include_fields,
+
         )
         self._mode = self.UPDATE_MODE
         self._old_calendar_list = self._read_calendars(self._calendars_dir.joinpath(f"{self.freq}.txt"))
@@ -422,19 +425,32 @@ class DumpDataUpdate(DumpDataBase):
 
         # load all csv files
         self._all_data = self._load_all_source_data()  # type: pd.DataFrame
+
+        def safe_compare(x, last_date):
+            try:
+                return x > last_date
+            except TypeError as e:
+                print(
+                    f"Comparison failed between: x={x} (type: {type(x)}) and last_date={last_date} (type: {type(last_date)})")
+                raise  # 可以选择重新抛出异常，或者返回 False 跳过该数据
+
         self._new_calendar_list = self._old_calendar_list + sorted(
-            filter(lambda x: x > self._old_calendar_list[-1], self._all_data[self.date_field_name].unique())
+            filter(lambda x:  safe_compare(x,self._old_calendar_list[-1]), self._all_data[self.date_field_name].unique())
         )
 
     def _load_all_source_data(self):
         # NOTE: Need more memory
         logger.info("start load all source data....")
         all_df = []
+        date_field_name = self.date_field_name
+        symbol_field_name=self.symbol_field_name
+        get_symbol_from_file=self.get_symbol_from_file
 
         def _read_csv(file_path: Path):
-            _df = pd.read_csv(file_path, parse_dates=[self.date_field_name])
-            if self.symbol_field_name not in _df.columns:
-                _df[self.symbol_field_name] = self.get_symbol_from_file(file_path)
+            _df = pd.read_csv(file_path, parse_dates=[date_field_name])
+            _df[date_field_name]=pd.to_datetime(_df[date_field_name])
+            if symbol_field_name not in _df.columns:
+                _df[symbol_field_name] = get_symbol_from_file(file_path)
             return _df
 
         with tqdm(total=len(self.csv_files)) as p_bar:
@@ -445,6 +461,7 @@ class DumpDataUpdate(DumpDataBase):
                     p_bar.update()
 
         logger.info("end of load all data.\n")
+
         return pd.concat(all_df, sort=False)
 
     def _dump_calendars(self):
