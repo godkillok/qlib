@@ -29,6 +29,7 @@ class Config:
     QLIB_DIR = "~/qlib_data"  # Qlib数据存储目录
     RAW_DATA_DIR = "~/qlib_raw"  # 原始CSV数据目录
     FREQ = "d"  # 数据频率: d/1m/5m
+    FREQ_QLIAB="day"
 
     # 市场类型 (all/csi300/csi500)"all"#
     MARKET = "all"#"csi300"
@@ -169,7 +170,7 @@ class QlibBaostockIntegration:
         DumpDataAll(
             csv_path=str(self.raw_data_dir),
             qlib_dir=str(self.qlib_dir),
-            freq="day",
+            freq=self.cfg.FREQ_QLIAB,
             date_field_name="date",
             instrucment_file_name=self.cfg.MARKET,
             symbol_field_name="symbol",
@@ -179,9 +180,10 @@ class QlibBaostockIntegration:
     def daily_insert(self) -> None:
         """增量模式：更新当日数据"""
         # 获取Qlib最新日期
-        calendar_file = self.qlib_dir / "calendars" / f"{self.cfg.FREQ}.txt"
+        calendar_file = self.qlib_dir / "calendars" / f"{self.cfg.FREQ_QLIAB}.txt"
+
         if not calendar_file.exists():
-            raise FileNotFoundError("请先运行dump_all初始化数据")
+            raise FileNotFoundError(calendar_file,"请先运行dump_all初始化数据")
 
         with open(calendar_file, "r") as f:
             last_date = max(line.strip() for line in f)
@@ -194,7 +196,7 @@ class QlibBaostockIntegration:
             logging.info("无新交易日数据")
             return
 
-        # 下载增量数据
+        下载增量数据
         symbols = self._get_symbols()
         for symbol in tqdm(symbols, desc="股票下载进度", unit="只"):
             csv_path = self.raw_data_dir / f"{symbol}.csv"
@@ -205,16 +207,40 @@ class QlibBaostockIntegration:
                 continue
 
             df_combined = pd.concat([df_old, df_new]).drop_duplicates("date")
+            df_combined["date"]=pd.to_datetime(df_combined["date"],format='mixed')
             df_combined.to_csv(csv_path, index=False)
 
         # 增量导入Qlib
-        DumpDataUpdate(
+        # 导入Qlib
+        DumpDataAll(
             csv_path=str(self.raw_data_dir),
             qlib_dir=str(self.qlib_dir),
-            freq=self.cfg.FREQ,
+            freq=self.cfg.FREQ_QLIAB,
             date_field_name="date",
+            instrucment_file_name=self.cfg.MARKET,
             symbol_field_name="symbol",
+            exclude_fields="code,symbol",
         ).dump()
+        # DumpDataUpdate(
+        #     csv_path=str(self.raw_data_dir),
+        #     qlib_dir=str(self.qlib_dir),
+        #     freq=self.cfg.FREQ_QLIAB,
+        #     date_field_name="date",
+        #     symbol_field_name="symbol",
+        #     instrucment_file_name=self.cfg.MARKET,
+        #     exclude_fields="code,symbol",
+        # ).dump()
+
+        # DumpDataAll(
+        #     csv_path=str(self.raw_data_dir),
+        #     qlib_dir=str(self.qlib_dir),
+        #     freq=self.cfg.FREQ_QLIAB,
+        #     date_field_name="date",
+        #     instrucment_file_name=self.cfg.MARKET,
+        #
+        #     symbol_field_name="symbol",
+        #     exclude_fields="code,symbol",
+        # ).dump()
 
     def __del__(self):
         """确保登出"""
@@ -224,7 +250,10 @@ class QlibBaostockIntegration:
 
 if __name__ == "__main__":
     import fire
-
+    '''
+    python3  qlib_baostock.py  dump_all
+    python3  qlib_baostock.py  daily_insert
+    '''
     fire.Fire(QlibBaostockIntegration)
 
 
