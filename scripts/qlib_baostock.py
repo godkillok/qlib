@@ -195,7 +195,7 @@ class QlibBaostockIntegration:
         if not trading_dates:
             logging.info("无新交易日数据")
             return
-
+        print("需要补数据的日期",start_date, end_date)
         #下载增量数据
         symbols = self._get_symbols()
         for symbol in tqdm(symbols, desc="股票下载进度", unit="只"):
