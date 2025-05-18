@@ -43,7 +43,7 @@ merged = pd.merge(
 )
 
 # 重命名列并筛选结果
-result = merged[["code", "close_angle", "ma5_angle", "code_name"]][:20]
+result = merged[["code", "close_angle", "ma5_angle", "code_name"]]
 stocks = result.to_dict(orient='records')
 grid_columns = [
     {"field": "code", "headerName": "代码"},
@@ -125,14 +125,14 @@ app.layout = html.Div([
                     "pagination": True,
                     "paginationPageSize": 20,
                     "rowSelection": "single",  # 单行选择模式
-                    "suppressRowClickSelection": True,  # 可选：需要点击复选框才能选中
+        "suppressRowClickSelection": False,  # 允许点击行选择
                     "cacheBlockSize": 100,
                     "maxBlocksInCache": 2
                 },
 
                 # 样式参数
                 className="ag-theme-alpine",
-                style={"height": "300px", "width": "100%"},
+                style={"height": "600px", "width": "100%"},
 
                 # 选择状态
                 selectedRows=[],  # 必须的参数用于接收选中数据
@@ -342,6 +342,10 @@ def update_main_chart(data, period, indicators):
                 low=df['$low'],
                 close=df['$close'],
                 name='K线',
+                increasing_line_color='red',  # 上涨线颜色
+                increasing_fillcolor='red',  # 上涨填充颜色
+                decreasing_line_color='green',  # 下跌线颜色
+                decreasing_fillcolor='green',  # 下跌填充颜色
             )
         )
 
@@ -352,7 +356,7 @@ def update_main_chart(data, period, indicators):
         if 'boll' in indicators and 'Upper' in df.columns:
             fig.add_trace(go.Scatter(x=df['date'], y=df['Upper'], name='上轨', line=dict(color='blue', width=1, dash='dot')))
             fig.add_trace(go.Scatter(x=df['date'], y=df['Lower'], name='下轨', line=dict(color='blue', width=1, dash='dot'), fill='tonexty'))
-
+        fig.update_layout(xaxis_type='category')
         # 智能抽样函数（确保至少显示首尾日期）
         def smart_sample(dates, target=10):
             if len(dates) <= target:
@@ -441,7 +445,8 @@ def update_subchart1(data, period, indicator):
         elif indicator == 'VOL':
             colors = ['red' if up else 'green' for up in df['is_up']]
             fig.add_trace(go.Bar(x=df['date'], y=df['$volume'], name='成交量', marker_color=colors))
-            fig.update_layout(xaxis_type='category')
+
+        fig.update_layout(xaxis_type='category')
 
         fig.update_layout(
             xaxis=dict(
