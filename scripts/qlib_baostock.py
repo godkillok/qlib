@@ -28,6 +28,7 @@ class Config:
     # Qlib 参数
     QLIB_DIR = "~/qlib_data"  # Qlib数据存储目录
     RAW_DATA_DIR = "~/qlib_raw"  # 原始CSV数据目录
+    CODE_FILE="stock_code.csv"
     FREQ = "d"  # 数据频率: d/1m/5m
     FREQ_QLIAB="day"
 
@@ -241,6 +242,26 @@ class QlibBaostockIntegration:
         #     symbol_field_name="symbol",
         #     exclude_fields="code,symbol",
         # ).dump()
+
+    def get_stock_code(self):
+
+        #### 获取证券信息 ####
+        trading_dates='2025-05-16'
+        rs = bs.query_all_stock(day=trading_dates)
+        print('query_all_stock respond error_code:' + rs.error_code)
+        print('query_all_stock respond  error_msg:' + rs.error_msg)
+
+        csv_path = self.raw_data_dir / f"stock_code.csv"
+
+        #### 打印结果集 ####
+        data_list = []
+        while (rs.error_code == '0') & rs.next():
+            # 获取一条记录，将记录合并在一起
+            data_list.append(rs.get_row_data())
+        result = pd.DataFrame(data_list, columns=rs.fields)
+
+        #### 结果集输出到csv文件 ####
+        result.to_csv(csv_path, encoding="gbk", index=False)
 
     def __del__(self):
         """确保登出"""

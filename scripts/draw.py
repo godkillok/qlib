@@ -17,11 +17,11 @@ qlib.init(provider_uri=provider_uri, region=REG_CN)
 
 # 股票列表
 stocks = [
-    {'code': 'sh601012', 'name': '隆基绿能'},
-    {'code': 'sh600519', 'name': '贵州茅台'},
-    {'code': 'sz300750', 'name': '宁德时代'},
-    {'code': 'sh688041', 'name': '贵州'},
-    {'code': 'sz000158', 'name': '宁'}
+    {'code': 'sh601012', 'name': '隆基绿能',"info1":"info1","info2":"info2"},
+    {'code': 'sh600519', 'name': '贵州茅台',"info1":"info1","info2":"info2"},
+    {'code': 'sz300750', 'name': '宁德时代',"info1":"info1","info2":"info2"},
+    {'code': 'sh688041', 'name': '贵州',"info1":"info1","info2":"info2"},
+    {'code': 'sz000158', 'name': '宁',"info1":"info1","info2":"info2"}
 ]
 
 
@@ -30,7 +30,7 @@ def get_stock_data(instrument, start_date, end_date):
     fields = ["$open", "$high", "$low", "$close", "$volume"]
     kline_data = D.features([instrument], fields, start_time=start_date, end_time=end_date)
     df = kline_data.loc[instrument].reset_index()
-
+    df =df.tail(30)
     # 过滤掉没有交易数据的日期（如周末、节假日）
     df = df[df["$close"].notna()]  # 确保收盘价不为空
     df["date"] = pd.to_datetime(df["datetime"])
@@ -85,8 +85,13 @@ app.layout = html.Div([
                         html.Tr([
                             html.Td(
                                 html.Div([
-                                    html.Div(s['name'], style={'fontWeight': 'bold'}),
-                                    html.Div(f"({s['code'][2:]})", style={'fontSize': '0.8em'})
+                                    html.Div([  # 名称与代码行
+                                        html.Span(s['name'], style={'fontWeight': 'bold'}),
+                                        html.Span(f"({s['code'][2:]})",
+                                                  style={'fontSize': '0.8em', 'marginLeft': '6px'}),
+                                        html.Span(s['info1'], style={'flex': 1, 'marginLeft': '6px'}),
+                                        html.Span(s['info2'], style={'flex': 1, 'marginLeft': '6px'}),
+                                    ])
                                 ], className='stock-item',
                                     id={'type': 'stock-item', 'index': s['code']},
                                     n_clicks=0),
@@ -94,7 +99,7 @@ app.layout = html.Div([
                                     'padding': '8px',
                                     'cursor': 'pointer',
                                     'borderBottom': '1px solid #eee',
-                                    'display': 'block'  # 确保每个项目单独一行
+                                    'display': 'block'  # 保持原始display模式
                                 }
                             ) for s in stocks
                         ])
