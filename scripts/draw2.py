@@ -45,19 +45,26 @@ merged = pd.merge(
 # 重命名列并筛选结果
 result = merged[["code", "close_angle", "ma5_angle", "code_name"]]
 stocks = result.to_dict(orient='records')
+
+# 为每只股票添加一个勾选状态列，默认为0
+for stock in stocks:
+    stock['selected'] = 0
+
 grid_columns = [
+    {"field": "selected", "headerName": "勾选", "checkboxSelection": True, "editable": True},
     {"field": "code", "headerName": "代码"},
     {"field": "code_name", "headerName": "名称"},
     {"field": "close_angle", "headerName": "收盘角度", "valueFormatter": "Number(d3) + '°'", "suppressFilter": True},
     {"field": "ma5_angle", "headerName": "MA5角度", "valueFormatter": "Number(d3) + '°'", "suppressFilter": True}
 ]
 
+
 # 获取股票数据并计算指标
 def get_stock_data(instrument, start_date, end_date):
     fields = ["$open", "$high", "$low", "$close", "$volume"]
     kline_data = D.features([instrument], fields, start_time=start_date, end_time=end_date)
     df = kline_data.loc[instrument].reset_index()
-    df = df.tail(30)
+    df = df.tail(60)
     # 过滤掉没有交易数据的日期（如周末、节假日）
     df = df[df["$close"].notna()]  # 确保收盘价不为空
     df["date"] = pd.to_datetime(df["datetime"])
@@ -118,7 +125,7 @@ app.layout = html.Div([
                 # 基础参数
                 columnDefs=grid_columns,
                 rowData=stocks,
-                defaultColDef={"sortable": True, "filter": True, "resizable": True},
+                defaultColDef={"sortable": True, "filter": True, "resizable": True, "editable": True},
 
                 # 网格配置
                 dashGridOptions={
@@ -127,7 +134,9 @@ app.layout = html.Div([
                     "rowSelection": "single",  # 单行选择模式
         "suppressRowClickSelection": False,  # 允许点击行选择
                     "cacheBlockSize": 100,
-                    "maxBlocksInCache": 2
+                    "maxBlocksInCache": 2,
+                    "singleClickEdit": True,  # 允许单击编辑
+                    "suppressCopyRowsToClipboard": False  # 允许复制
                 },
 
                 # 样式参数
@@ -135,7 +144,7 @@ app.layout = html.Div([
                 style={"height": "600px", "width": "100%"},
 
                 # 选择状态
-                selectedRows=[],  # 必须的参数用于接收选中数据
+                selectedRows=[],  # 必须的参数用于接收选中数据sh600530
             ),
 
             html.Div(id="selected-stock-info", style={"marginTop": "20px"}),
@@ -377,6 +386,8 @@ def update_main_chart(data, period, indicators):
             xaxis=dict(
                 type='category',
                 tickmode='array',
+                range=[df['date'].iloc[-10], df['date'].iloc[-1]],
+
                 tickvals=tick_dates,
                 ticktext=tick_labels,
                 tickangle=-45,

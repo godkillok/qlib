@@ -244,24 +244,61 @@ class QlibBaostockIntegration:
         # ).dump()
 
     def get_stock_code(self):
-
         #### 获取证券信息 ####
-        trading_dates='2025-05-16'
+        trading_dates = '2025-05-16'
         rs = bs.query_all_stock(day=trading_dates)
-        print('query_all_stock respond error_code:' + rs.error_code)
-        print('query_all_stock respond  error_msg:' + rs.error_msg)
 
-        csv_path = self.raw_data_dir / f"stock_code.csv"
+        # 增强错误处理
+        if rs.error_code != '0':
+            print(f'获取股票代码失败！错误码：{rs.error_code}，错误信息：{rs.error_msg}')
+            return False
 
-        #### 打印结果集 ####
-        data_list = []
-        while (rs.error_code == '0') & rs.next():
-            # 获取一条记录，将记录合并在一起
-            data_list.append(rs.get_row_data())
-        result = pd.DataFrame(data_list, columns=rs.fields)
+        csv_path = self.raw_data_dir / "stock_code.csv"
 
-        #### 结果集输出到csv文件 ####
-        result.to_csv(csv_path, encoding="gbk", index=False)
+        try:
+            #### 处理结果集 ####
+            data_list = []
+            while rs.next():
+                data_list.append(rs.get_row_data())
+
+            result = pd.DataFrame(data_list, columns=rs.fields)
+
+            # 空数据检查
+            if result.empty:
+                print("警告：未获取到任何股票代码数据")
+                return False
+
+            # 列存在性检查
+            required_columns = ['code']
+            missing_cols = [col for col in required_columns if col not in result.columns]
+            if missing_cols:
+                print(f"关键列缺失：{missing_cols}")
+                return False
+
+            # 数据处理
+            result['code'] = result['code'].astype(str).str.strip().fillna('')
+            result['symbol'] = result['code'].str.replace(r'\.', '', regex=True)
+
+            # 调整列顺序（把symbol放在第二列）
+            col_order = ['symbol'] + [col for col in result.columns if col != 'symbol']
+            result = result[col_order]
+
+            #### 保存文件 ####
+            result.to_csv(csv_path, index=False, encoding='utf-8-sig')
+
+            # 保存后验证
+            if not csv_path.exists():
+                print("文件保存失败，请检查路径权限")
+                return False
+
+            print(f"成功保存{len(result)}条股票代码记录")
+            return True
+
+        except Exception as e:
+            print(f"处理股票代码时发生异常：{str(e)}")
+            import traceback
+            traceback.print_exc()
+            return False
 
     def __del__(self):
         """确保登出"""
