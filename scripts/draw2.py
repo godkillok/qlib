@@ -1,13 +1,16 @@
-import dash
-from dash import dcc, html, Input, Output, State, callback
-import dash_ag_grid as dag
-import pandas as pd
-import plotly.graph_objects as go
-from plotly.subplots import make_subplots
-import talib
 import qlib
 from qlib.data import D
 from qlib.constant import REG_CN
+import plotly.graph_objects as go
+import pandas as pd
+import talib
+from talib import RSI, MACD, STOCH
+import dash
+from dash import dcc, html, Input, Output, callback, State
+from dash import dash_table as dag
+from dash.dash_table.Format import Format, Group
+import dash_ag_grid as dag
+from plotly.subplots import make_subplots
 import numpy as np
 from datetime import datetime
 
@@ -15,206 +18,272 @@ from datetime import datetime
 provider_uri = "/Users/tanggp/qlib_data/"
 qlib.init(provider_uri=provider_uri, region=REG_CN)
 
-# 读取CSV文件并合并生成股票列表
+# 股票列表
+# stocks = [
+#     {'code': 'sh601012', 'name': '隆基绿能',"info1":"info1","info2":"info2"},
+#     {'code': 'sh600519', 'name': '贵州茅台',"info1":"info1","info2":"info2"},
+#     {'code': 'sz300750', 'name': '宁德时代',"info1":"info1","info2":"info2"},
+#     {'code': 'sh688041', 'name': '贵州',"info1":"info1","info2":"info2"},
+#     {'code': 'sz000158', 'name': '宁',"info1":"info1","info2":"info2"}
+# ]
+
+import pandas as pd
+
+# 读取两个CSV文件
 df1 = pd.read_csv('/Users/tanggp/qlib_raw/stock_code.csv')  # 包含 code,tradeStatus,code_name,symbol
-df2 = pd.read_csv(
-    "/Users/tanggp/Documents/quanta/qlib/scripts/angle_stocks.csv")  # 包含 code,last_close,close_angle,ma5_angle,volume,is_not_st,status_ok
+df2 = pd.read_csv("/Users/tanggp/Documents/quanta/qlib/scripts/angle_stocks.csv")  # 包含 code,last_close,close_angle,ma5_angle,volume,is_not_st,status_ok
 
-# 合并数据并筛选结果
+# 使用右连接 (保留csv2中所有code)
 merged = pd.merge(
-    df2[["code", "close_angle", "ma5_angle"]],
-    df1[["symbol", "code_name"]],
-    left_on="code",
-    right_on="symbol",
-    how="inner"
+    df2[["code", "close_angle", "ma5_angle"]],  # 只选择csv2需要的列
+    df1[["symbol", "code_name"]],              # 只选择csv1需要的列
+    left_on="code",                            # 用csv2.code匹配
+    right_on="symbol",                         # csv1.symbol
+    how="inner"                                # 以csv2的code为基准
 )
-stocks = merged[["code", "close_angle", "ma5_angle", "code_name"]].to_dict(orient='records')
 
+# 重命名列并筛选结果
+result = merged[["code", "close_angle", "ma5_angle", "code_name"]][:20]
+stocks = result.to_dict(orient='records')
+grid_columns = [
+    {"field": "code", "headerName": "代码"},
+    {"field": "code_name", "headerName": "名称"},
+    {"field": "close_angle", "headerName": "收盘角度", "valueFormatter": "Number(d3) + '°'", "suppressFilter": True},
+    {"field": "ma5_angle", "headerName": "MA5角度", "valueFormatter": "Number(d3) + '°'", "suppressFilter": True}
+]
 
-# 定义获取股票数据的函数
+# 获取股票数据并计算指标
 def get_stock_data(instrument, start_date, end_date):
     fields = ["$open", "$high", "$low", "$close", "$volume"]
     kline_data = D.features([instrument], fields, start_time=start_date, end_time=end_date)
     df = kline_data.loc[instrument].reset_index()
     df = df.tail(30)
+    # 过滤掉没有交易数据的日期（如周末、节假日）
+    df = df[df["$close"].notna()]  # 确保收盘价不为空
     df["date"] = pd.to_datetime(df["datetime"])
+
+    # 计算均线
     df["ma5"] = talib.SMA(df["$close"], timeperiod=5)
     df["ma10"] = talib.SMA(df["$close"], timeperiod=10)
     df["ma20"] = talib.SMA(df["$close"], timeperiod=20)
-    upper, middle, lower = talib.BBANDS(df["$close"], timeperiod=20)
-    df["Upper"] = upper
-    df["Middle"] = middle
-    df["Lower"] = lower
-    df["RSI"] = talib.RSI(df["$close"], timeperiod=14)
-    macd, macdsignal, macdhist = talib.MACD(df["$close"])
-    df["MACD"] = macd
-    df["MACD_Signal"] = macdsignal
-    df["MACD_Hist"] = macdhist
-    slowk, slowd = talib.STOCH(df["$high"], df["$low"], df["$close"])
-    df["K"] = slowk
-    df["D"] = slowd
-    df["J"] = 3 * df["K"] - 2 * df["D"]
-    df["pct_change"] = df["$close"].pct_change() * 100
-    df["is_up"] = df["$close"] > df["$open"]
-    return df
 
+    # 计算布林带
+    upper, middle, lower = talib.BBANDS(df['$close'], timeperiod=20)
+    df['Upper'] = upper
+    df['Middle'] = middle
+    df['Lower'] = lower
+
+    # RSI
+    df['RSI'] = RSI(df['$close'], timeperiod=14)
+
+    # MACD
+    macd, macdsignal, macdhist = MACD(df['$close'])
+    df['MACD'] = macd
+    df['MACD_Signal'] = macdsignal
+    df['MACD_Hist'] = macdhist
+
+    # KDJ
+    slowk, slowd = STOCH(df['$high'], df['$low'], df['$close'])
+    df['K'] = slowk
+    df['D'] = slowd
+    df['J'] = 3 * df['K'] - 2 * df['D']
+
+    df['pct_change'] = df['$close'].pct_change() * 100
+    df['is_up'] = df['$close'] > df['$open']  # 添加涨跌判断
+
+    return df
 
 # 创建Dash应用
 app = dash.Dash(__name__)
 
-# 定义表格列
-grid_columns = [
-    {"field": "code_name", "headerName": "股票名称", "sortable": True, "filter": True},
-    {"field": "code", "headerName": "代码", "sortable": True, "filter": True},
-    {"field": "close_angle", "headerName": "收盘角度", "sortable": True, "filter": True},
-    {"field": "ma5_angle", "headerName": "MA5角度", "sortable": True, "filter": True},
-]
-
 app.layout = html.Div([
     html.Div([
-        html.H2("股票分析系统", style={'textAlign': 'center'}),
-
-        # 搜索区域
+        # 左侧控制面板
         html.Div([
-            dcc.Input(
-                id="stock-search",
-                type="text",
-                placeholder="输入股票名称或代码搜索...",
-                style={"width": "100%", "padding": "8px", "marginBottom": "10px"}
+            html.H2("股票分析系统", style={'textAlign': 'center'}),
+
+            # 搜索时间区域
+            html.Div([
+                dcc.Input(
+                    id="stock-search",
+                    type="text",
+                    placeholder="输入股票名称或代码搜索...",
+                    style={"width": "100%", "padding": "8px", "marginBottom": "10px"}
+                ),
+            ]),
+
+            # 虚拟滚动表格
+            dag.AgGrid(
+                id="stock-grid",
+                # 基础参数
+                columnDefs=grid_columns,
+                rowData=stocks,
+                defaultColDef={"sortable": True, "filter": True, "resizable": True},
+
+                # 网格配置
+                dashGridOptions={
+                    "pagination": True,
+                    "paginationPageSize": 20,
+                    "rowSelection": "single",  # 单行选择模式
+                    "suppressRowClickSelection": True,  # 可选：需要点击复选框才能选中
+                    "cacheBlockSize": 100,
+                    "maxBlocksInCache": 2
+                },
+
+                # 样式参数
+                className="ag-theme-alpine",
+                style={"height": "300px", "width": "100%"},
+
+                # 选择状态
+                selectedRows=[],  # 必须的参数用于接收选中数据
             ),
-        ]),
 
-        # 虚拟滚动表格
-        dag.AgGrid(
-            id="stock-grid",
-            # 基础参数
-            columnDefs=grid_columns,
-            rowData=stocks,
-            defaultColDef={"sortable": True, "filter": True, "resizable": True},
+            html.Div(id="selected-stock-info", style={"marginTop": "20px"}),
 
-            # 网格配置
-            dashGridOptions={
-                "pagination": True,
-                "paginationPageSize": 20,
-                "rowSelection": "single",  # 单行选择模式
-                "suppressRowClickSelection": True,  # 可选：需要点击复选框才能选中
-                "cacheBlockSize": 100,
-                "maxBlocksInCache": 2
-            },
+            # 时间周期选择
+            html.Div([
+                html.H4("时间周期"),
+                dcc.RadioItems(
+                    id='period-selector',
+                    options=[
+                        {'label': '日K', 'value': 'daily'},
+                        {'label': '周K', 'value': 'weekly'},
+                        {'label': '月K', 'value': 'monthly'}
+                    ],
+                    value='daily',
+                    labelStyle={'display': 'inline-block', 'margin-right': '10px'}
+                )
+            ], style={'margin': '20px 0'}),
 
-            # 样式参数
-            # rowHeight=35,
-            className="ag-theme-alpine",
-            style={"height": "600px", "width": "100%"},
+            # 主图指标选择
+            html.Div([
+                html.H4("主图指标"),
+                dcc.Checklist(
+                    id='main-indicator-selector',
+                    options=[
+                        {'label': '均线', 'value': 'ma'},
+                        {'label': '布林线', 'value': 'boll'}
+                    ],
+                    value=['ma'],
+                    labelStyle={'display': 'block'}
+                )
+            ], style={'margin': '20px 0'}),
 
-            # 选择状态
-            selectedRows=[],  # 必须的参数用于接收选中数据
-        ),
+            # 子图1指标选择
+            html.Div([
+                html.H4("子图1指标"),
+                dcc.Dropdown(
+                    id='subchart1-selector',
+                    options=[
+                        {'label': 'RSI', 'value': 'RSI'},
+                        {'label': 'MACD', 'value': 'MACD'},
+                        {'label': 'KDJ', 'value': 'KDJ'},
+                        {'label': '成交量', 'value': 'VOL'}
+                    ],
+                    value='RSI',
+                    clearable=False
+                )
+            ], style={'margin': '20px 0'}),
 
-        html.Div(id="selected-stock-info", style={"marginTop": "20px"})
-    ], style={"width": "30%", "padding": "20px", "borderRight": "1px solid #ddd"}),
+            # 子图2指标选择
+            html.Div([
+                html.H4("子图2指标"),
+                dcc.Dropdown(
+                    id='subchart2-selector',
+                    options=[
+                        {'label': 'RSI', 'value': 'RSI'},
+                        {'label': 'MACD', 'value': 'MACD'},
+                        {'label': 'KDJ', 'value': 'KDJ'},
+                        {'label': '成交量', 'value': 'VOL'}
+                    ],
+                    value='MACD',
+                    clearable=False
+                )
+            ], style={'margin': '20px 0'}),
 
-    html.Div([
-        # 信息显示容器
-        html.Div(
-            id='hover-info',
-            style={
-                'position': 'absolute',
-                'top': '20px',
-                'left': '50%',
-                'transform': 'translateX(-50%)',
-                'background': 'rgba(255, 255, 255, 0.95)',
-                'padding': '10px 15px',
-                'border-radius': '8px',
-                'box-shadow': '0 2px 10px rgba(0,0,0,0.15)',
-                'border': '1px solid #eee',
-                'z-index': '100',
-                'display': 'none',
-                'font-family': 'Arial, sans-serif',
-                'font-size': '14px',
-                'min-width': '280px'
-            }
-        ),
+            # 当前价格信息
+            html.Div([
+                html.H4("当前价格"),
+                html.Div(id='current-price', style={'fontSize': 24}),
+                html.Div(id='price-change', style={'fontSize': 16})
+            ])
+        ], style={'width': '30%', 'padding': '20px', 'borderRight': '1px solid #ddd'}),
 
-        # K线图
-        dcc.Graph(
-            id='main-chart',
-            style={'height': '50vh', 'position': 'relative'},
-            config={'displayModeBar': False}
-        ),
+        # 右侧图表区
+        html.Div([
+            # 信息显示容器（放在图表容器内部）
+            html.Div(
+                id='hover-info',
+                style={
+                    'position': 'absolute',
+                    'top': '20px',
+                    'left': '50%',
+                    'transform': 'translateX(-50%)',
+                    'background': 'rgba(255, 255, 255, 0.95)',
+                    'padding': '10px 15px',
+                    'border-radius': '8px',
+                    'box-shadow': '0 2px 10px rgba(0,0,0,0.15)',
+                    'border': '1px solid #eee',
+                    'z-index': '100',
+                    'display': 'none',
+                    'font-family': 'Arial, sans-serif',
+                    'font-size': '14px',
+                    'min-width': '280px'
+                }
+            ),
 
-        # 子图1
-        dcc.Graph(
-            id='sub-chart1',
-            style={'height': '25vh'}
-        ),
+            # K线图
+            dcc.Graph(
+                id='main-chart',
+                style={'height': '50vh', 'position': 'relative'},
+                config={'displayModeBar': False}
+            ),
 
-        # 子图2
-        dcc.Graph(
-            id='sub-chart2',
-            style={'height': '25vh'}
-        )
-    ], style={'width': '70%', 'padding': '20px', 'position': 'relative'}),
+            # 子图1
+            dcc.Graph(
+                id='sub-chart1',
+                style={'height': '25vh'}
+            ),
+
+            # 子图2
+            dcc.Graph(
+                id='sub-chart2',
+                style={'height': '25vh'}
+            )
+        ], style={'width': '70%', 'padding': '20px', 'position': 'relative'})
+    ], style={'display': 'flex', 'height': '100vh'}),
 
     # 隐藏存储
     dcc.Store(id='stock-data'),
-    dcc.Store(id='selected-stock', data=None)
-], style={'display': 'flex', 'height': '100vh'})
+    dcc.Store(id='selected-stock', data=stocks[0]['code'])
+])
 
-
-# 回调函数：搜索股票
+# 回调函数：处理表格行选择
 @app.callback(
-    Output("stock-grid", "rowData"),
-    Input("stock-search", "value"),
-    State("stock-grid", "rowData")
+    [Output('selected-stock', 'data'),
+     Output("selected-stock-info", "children"),
+     Output('stock-grid', 'selectedRows')],
+    Input('stock-grid', 'selectedRows')
 )
-def search_stocks(search_term, all_stocks):
-    if not search_term:
-        return stocks
-    search_term = search_term.lower()
-    filtered_stocks = [
-        stock for stock in stocks
-        if search_term in stock["code_name"].lower() or search_term in stock["code"]
-    ]
-    return filtered_stocks
-
-
-# 回调函数：显示选中的股票信息
-@app.callback(
-    [Output("selected-stock-info", "children"),
-     Output("selected-stock", "data")],
-    Input("stock-grid", "selectedRows")
-)
-def display_selected_stock(selected_rows):
+def select_stock_row(selected_rows):
     if selected_rows:
-        selected_stock = selected_rows[0]
-        return [
-            html.Div([
-                html.H4(f"选中的股票：{selected_stock['code_name']} ({selected_stock['code']})"),
-                html.P(f"收盘角度：{selected_stock['close_angle']}", style={"margin": "5px 0"}),
-                html.P(f"MA5角度：{selected_stock['ma5_angle']}", style={"margin": "5px 0"})
-            ]),
-            selected_stock["code"]
-        ]
-    return [html.Div("未选择股票"), None]
-
+        selected_row = selected_rows[0]
+        selected_code = selected_row['code']
+        return selected_code, html.Div(f"已选择: {selected_row['code_name']} ({selected_row['code'][2:]})", style={"color": "blue"}), selected_rows
+    else:
+        return stocks[0]['code'], html.Div("请在表格中选择一行数据"), []
 
 # 回调函数：加载股票数据
-@app.callback(
+@callback(
     Output('stock-data', 'data'),
     Input('selected-stock', 'data')
 )
 def load_stock_data(stock_code):
-    if not stock_code:
-        return None
-    # 根据选中的股票代码获取数据
-    instrument = stock_code  # 假设股票代码可以直接作为instrument
-    df = get_stock_data(instrument, "2025-01-01", "2025-05-30")
+    df = get_stock_data(stock_code, "2025-01-01", "2025-05-30")
     return df.to_dict('records')
 
-
 # 回调函数：更新价格信息
-@app.callback(
+@callback(
     [Output('current-price', 'children'),
      Output('price-change', 'children')],
     Input('stock-data', 'data')
@@ -222,17 +291,18 @@ def load_stock_data(stock_code):
 def update_price_info(data):
     if not data:
         return "", ""
+
     df = pd.DataFrame(data)
     last_row = df.iloc[-1]
     price = f"{last_row['$close']:.2f}"
     pct_change = last_row['pct_change']
     change_text = f"{'↑' if pct_change >= 0 else '↓'} {abs(pct_change):.2f}%"
     color = 'red' if pct_change >= 0 else 'green'
+
     return price, html.Span(change_text, style={'color': color})
 
-
 # 回调函数：更新主图
-@app.callback(
+@callback(
     Output('main-chart', 'figure'),
     [Input('stock-data', 'data'),
      Input('period-selector', 'value'),
@@ -272,10 +342,6 @@ def update_main_chart(data, period, indicators):
                 low=df['$low'],
                 close=df['$close'],
                 name='K线',
-                # range=[  # 初始显示范围设置
-                #     latest_30_dates.iloc[0].strftime('%Y-%m-%d'),
-                #     latest_30_dates.iloc[-1].strftime('%Y-%m-%d')
-                # ],
             )
         )
 
@@ -315,7 +381,6 @@ def update_main_chart(data, period, indicators):
             margin=dict(l=20, r=20, t=50, b=20),
             showlegend=True,
             hovermode='x unified'
-
         )
 
         return fig
@@ -323,11 +388,8 @@ def update_main_chart(data, period, indicators):
         print(f"Error updating main chart: {str(e)}")
         return go.Figure()
 
-    # 回调函数：更新子图1
-
-
 # 回调函数：更新子图1
-@app.callback(
+@callback(
     Output('sub-chart1', 'figure'),
     [Input('stock-data', 'data'),
      Input('period-selector', 'value'),
@@ -336,12 +398,70 @@ def update_main_chart(data, period, indicators):
 def update_subchart1(data, period, indicator):
     if not data:
         return go.Figure()
-    # 这里的逻辑保持不变，直接沿用您原有的实现
-    # ...
 
+    try:
+        df = pd.DataFrame(data)
+        df['date'] = pd.to_datetime(df['date'])
 
-# 回拨函数：更新子图2
-@app.callback(
+        if period == 'weekly':
+            agg_dict = {
+                '$volume': 'sum', 'RSI': 'last', 'MACD': 'last', 'MACD_Signal': 'last',
+                'MACD_Hist': 'last', 'K': 'last', 'D': 'last', 'J': 'last', 'is_up': 'last'
+            }
+            df = df.resample('W-FRI', on='date').agg(agg_dict).reset_index()
+        elif period == 'monthly':
+            agg_dict = {
+                '$volume': 'sum', 'RSI': 'last', 'MACD': 'last', 'MACD_Signal': 'last',
+                'MACD_Hist': 'last', 'K': 'last', 'D': 'last', 'J': 'last', 'is_up': 'last'
+            }
+            df = df.resample('M', on='date').agg(agg_dict).reset_index()
+
+        fig = go.Figure()
+
+        if indicator == 'RSI':
+            fig.add_trace(go.Scatter(x=df['date'], y=df['RSI'], name='RSI', line=dict(color='purple')))
+            fig.update_yaxes(range=[0, 100])
+
+        elif indicator == 'MACD':
+            fig.add_trace(go.Bar(
+                x=df['date'],
+                y=df['MACD_Hist'],
+                name='MACD Hist',
+                marker_color=np.where(df['MACD_Hist'] < 0, 'red', 'green')
+            ))
+            fig.add_trace(go.Scatter(x=df['date'], y=df['MACD'], name='MACD', line=dict(color='blue')))
+            fig.add_trace(go.Scatter(x=df['date'], y=df['MACD_Signal'], name='Signal', line=dict(color='orange')))
+
+        elif indicator == 'KDJ':
+            fig.add_trace(go.Scatter(x=df['date'], y=df['K'], name='K', line=dict(color='blue')))
+            fig.add_trace(go.Scatter(x=df['date'], y=df['D'], name='D', line=dict(color='orange')))
+            fig.add_trace(go.Scatter(x=df['date'], y=df['J'], name='J', line=dict(color='purple')))
+            fig.update_yaxes(range=[0, 100])
+
+        elif indicator == 'VOL':
+            colors = ['red' if up else 'green' for up in df['is_up']]
+            fig.add_trace(go.Bar(x=df['date'], y=df['$volume'], name='成交量', marker_color=colors))
+            fig.update_layout(xaxis_type='category')
+
+        fig.update_layout(
+            xaxis=dict(
+                showticklabels=False,
+                showline=True,
+                linecolor='lightgray',
+                mirror=True,
+                ticks=''
+            ),
+            margin=dict(l=20, r=20, t=20, b=0),
+            showlegend=True
+        )
+
+        return fig
+    except Exception as e:
+        print(f"Error updating subchart1: {str(e)}")
+        return go.Figure()
+
+# 回调函数：更新子图2
+@callback(
     Output('sub-chart2', 'figure'),
     [Input('stock-data', 'data'),
      Input('period-selector', 'value'),
@@ -351,8 +471,6 @@ def update_subchart2(data, period, indicator):
     # 重用update_subchart1的逻辑
     return update_subchart1(data, period, indicator)
 
-
-# 回调函数：显示悬停信息
 @app.callback(
     Output('hover-info', 'children'),
     Output('hover-info', 'style'),
@@ -362,7 +480,6 @@ def update_subchart2(data, period, indicator):
 def display_hover_data(hoverData, stock_data):
     if not hoverData or not stock_data:
         return None, {'display': 'none'}
-    # 这里的逻辑保持不变，直接沿用您原有的实现
 
     try:
         point_index = hoverData['points'][0]['pointIndex']
@@ -486,7 +603,6 @@ def display_hover_data(hoverData, stock_data):
         import traceback
         traceback.print_exc()
         return None, {'display': 'none'}
-
 
 if __name__ == '__main__':
     app.run(debug=True, port=8050)
