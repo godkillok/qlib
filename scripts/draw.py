@@ -16,14 +16,33 @@ provider_uri = "/Users/tanggp/qlib_data/"
 qlib.init(provider_uri=provider_uri, region=REG_CN)
 
 # 股票列表
-stocks = [
-    {'code': 'sh601012', 'name': '隆基绿能',"info1":"info1","info2":"info2"},
-    {'code': 'sh600519', 'name': '贵州茅台',"info1":"info1","info2":"info2"},
-    {'code': 'sz300750', 'name': '宁德时代',"info1":"info1","info2":"info2"},
-    {'code': 'sh688041', 'name': '贵州',"info1":"info1","info2":"info2"},
-    {'code': 'sz000158', 'name': '宁',"info1":"info1","info2":"info2"}
-]
+# stocks = [
+#     {'code': 'sh601012', 'name': '隆基绿能',"info1":"info1","info2":"info2"},
+#     {'code': 'sh600519', 'name': '贵州茅台',"info1":"info1","info2":"info2"},
+#     {'code': 'sz300750', 'name': '宁德时代',"info1":"info1","info2":"info2"},
+#     {'code': 'sh688041', 'name': '贵州',"info1":"info1","info2":"info2"},
+#     {'code': 'sz000158', 'name': '宁',"info1":"info1","info2":"info2"}
+# ]
 
+import pandas as pd
+
+# 读取两个CSV文件
+df1 = pd.read_csv('/Users/tanggp/qlib_raw/stock_code.csv')  # 包含 code,tradeStatus,code_name,symbol
+df2 = pd.read_csv("/Users/tanggp/Documents/quanta/qlib/scripts/angle_stocks.csv")  # 包含 code,last_close,close_angle,ma5_angle,volume,is_not_st,status_ok
+
+# 使用右连接 (保留csv2中所有code)
+merged = pd.merge(
+    df2[["code", "close_angle", "ma5_angle"]],  # 只选择csv2需要的列
+    df1[["symbol", "code_name"]],              # 只选择csv1需要的列
+    left_on="code",                            # 用csv2.code匹配
+    right_on="symbol",                         # csv1.symbol
+    how="inner"                                # 以csv2的code为基准
+)
+
+# 重命名列并筛选结果
+result = merged[["code", "close_angle", "ma5_angle", "code_name"]][:20]
+print(result)
+stocks = result.to_dict(orient='records')
 
 # 获取股票数据并计算指标
 def get_stock_data(instrument, start_date, end_date):
@@ -86,11 +105,12 @@ app.layout = html.Div([
                             html.Td(
                                 html.Div([
                                     html.Div([  # 名称与代码行
-                                        html.Span(s['name'], style={'fontWeight': 'bold'}),
+                                        html.Span(s['code_name'], style={'fontWeight': 'bold'}),
                                         html.Span(f"({s['code'][2:]})",
                                                   style={'fontSize': '0.8em', 'marginLeft': '6px'}),
-                                        html.Span(s['info1'], style={'flex': 1, 'marginLeft': '6px'}),
-                                        html.Span(s['info2'], style={'flex': 1, 'marginLeft': '6px'}),
+                                        #close_angle	ma5_angle
+                                        html.Span(s['close_angle'], style={'flex': 1, 'marginLeft': '6px'}),
+                                        html.Span(s['ma5_angle'], style={'flex': 1, 'marginLeft': '6px'}),
                                     ])
                                 ], className='stock-item',
                                     id={'type': 'stock-item', 'index': s['code']},
@@ -256,7 +276,7 @@ def select_stock(clicks, items):
     Input('selected-stock', 'data')
 )
 def load_stock_data(stock_code):
-    df = get_stock_data(stock_code, "2020-01-01", "2025-04-30")
+    df = get_stock_data(stock_code, "2025-01-01", "2025-05-30")
     return df.to_dict('records')
 
 
@@ -312,6 +332,7 @@ def update_main_chart(data, period, indicators):
             df = df.resample('M', on='date').agg(agg_dict).reset_index()
 
         fig = go.Figure()
+        latest_30_dates = df['date'].iloc[-10:]
         fig.add_trace(
             go.Candlestick(
                 x=df['date'],
@@ -319,7 +340,11 @@ def update_main_chart(data, period, indicators):
                 high=df['$high'],
                 low=df['$low'],
                 close=df['$close'],
-                name='K线'
+                name='K线',
+                # range=[  # 初始显示范围设置
+                #     latest_30_dates.iloc[0].strftime('%Y-%m-%d'),
+                #     latest_30_dates.iloc[-1].strftime('%Y-%m-%d')
+                # ],
             )
         )
 
@@ -354,11 +379,12 @@ def update_main_chart(data, period, indicators):
                 tickvals=tick_dates,
                 ticktext=tick_labels,
                 tickangle=-45,
-                rangeslider_visible=True
+                rangeslider_visible=True,
             ),
             margin=dict(l=20, r=20, t=50, b=20),
             showlegend=True,
             hovermode='x unified'
+
         )
 
         return fig
@@ -421,6 +447,7 @@ def update_subchart1(data, period, indicator):
         elif indicator == 'VOL':
             colors = ['red' if up else 'green' for up in df['is_up']]
             fig.add_trace(go.Bar(x=df['date'], y=df['$volume'], name='成交量', marker_color=colors))
+            fig.update_layout(xaxis_type='category')
 
         fig.update_layout(
             xaxis=dict(
