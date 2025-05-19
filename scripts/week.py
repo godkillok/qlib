@@ -88,6 +88,17 @@ def process_stock_file(file_path):
 
         ma5_angle = calculate_relative_angle(stock_code,df['MA5'].values)
 
+
+        last_high = df['high'].iloc[-1]
+        prev_high = df['high'].iloc[-2]
+        last_close = df['close'].iloc[-1]
+        last_open = df['open'].iloc[-1]
+        prev_close = df['close'].iloc[-2]
+        prev_open = df['open'].iloc[-2]
+        df['downtrend'] = 0
+        if last_high < prev_high and last_close < last_open and prev_close < prev_open:
+            df['downtrend'] = 1
+
         # 获取最新数据
         latest_data = {
             'code': stock_code,
@@ -96,7 +107,8 @@ def process_stock_file(file_path):
             'ma5_angle': ma5_angle,
             'volume': df['volume'].iloc[-1],
             'is_not_st': df['isST'].iloc[-1] != 0,
-            'status_ok': df['tradestatus'].iloc[-1] == 1
+            'status_ok': df['tradestatus'].iloc[-1] == 1,
+            'downtrend': df['downtrend'].iloc[-1] if len(df) > 0 else 0
         }
         if  "002891" in stock_code :
             print(latest_data)
@@ -124,8 +136,11 @@ def batch_process():
         result_df = pd.DataFrame(results)
         # 筛选有效数据
         result_df = result_df[
-            (result_df['close_angle'] > 0)
-            ]
+            (result_df['close_angle'] > 0) &
+            (result_df['ma5_angle']*result_df['close_angle'] > 20*100) &
+            (result_df['is_not_st']==0) &
+            (result_df['downtrend']<1)
+        ]
         # 按角度排序
         result_df = result_df.sort_values('ma5_angle', ascending=False)
         result_df.to_csv(RESULT_FILE, index=False)

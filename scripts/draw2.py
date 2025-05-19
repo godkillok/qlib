@@ -12,7 +12,7 @@ from dash.dash_table.Format import Format, Group
 import dash_ag_grid as dag
 from plotly.subplots import make_subplots
 import numpy as np
-from datetime import datetime
+from datetime import datetime, timedelta
 
 # 初始化QLib数据源
 provider_uri = "/Users/tanggp/qlib_data/"
@@ -44,6 +44,9 @@ merged = pd.merge(
 
 # 重命名列并筛选结果
 result = merged[["code", "close_angle", "ma5_angle", "code_name"]]
+result["embsemble"]=result["close_angle"]*result["ma5_angle"]//100
+result['close_angle'] = result['close_angle'].round(1)
+result['ma5_angle'] = result['ma5_angle'].round(1)
 stocks = result.to_dict(orient='records')
 
 # 为每只股票添加一个勾选状态列，默认为0
@@ -54,6 +57,7 @@ grid_columns = [
     {"field": "selected", "headerName": "勾选", "checkboxSelection": True, "editable": True},
     {"field": "code", "headerName": "代码"},
     {"field": "code_name", "headerName": "名称"},
+    {"field": "embsemble", "headerName": "embsemble", "valueFormatter": "Number(d3) + '°'", "suppressFilter": True},
     {"field": "close_angle", "headerName": "收盘角度", "valueFormatter": "Number(d3) + '°'", "suppressFilter": True},
     {"field": "ma5_angle", "headerName": "MA5角度", "valueFormatter": "Number(d3) + '°'", "suppressFilter": True}
 ]
@@ -64,7 +68,6 @@ def get_stock_data(instrument, start_date, end_date):
     fields = ["$open", "$high", "$low", "$close", "$volume"]
     kline_data = D.features([instrument], fields, start_time=start_date, end_time=end_date)
     df = kline_data.loc[instrument].reset_index()
-    df = df.tail(60)
     # 过滤掉没有交易数据的日期（如周末、节假日）
     df = df[df["$close"].notna()]  # 确保收盘价不为空
     df["date"] = pd.to_datetime(df["datetime"])
@@ -98,6 +101,8 @@ def get_stock_data(instrument, start_date, end_date):
     df['pct_change'] = df['$close'].pct_change() * 100
     df['is_up'] = df['$close'] > df['$open']  # 添加涨跌判断
 
+    df = df.tail(60)
+
     return df
 
 # 创建Dash应用
@@ -109,17 +114,7 @@ app.layout = html.Div([
         html.Div([
             html.H2("股票分析系统", style={'textAlign': 'center'}),
 
-            # 搜索时间区域
-            html.Div([
-                dcc.Input(
-                    id="stock-search",
-                    type="text",
-                    placeholder="输入股票名称或代码搜索...",
-                    style={"width": "100%", "padding": "8px", "marginBottom": "10px"}
-                ),
-            ]),
-
-            # 虚拟滚动表格
+            # 股票选择表格
             dag.AgGrid(
                 id="stock-grid",
                 # 基础参数
@@ -148,6 +143,8 @@ app.layout = html.Div([
             ),
 
             html.Div(id="selected-stock-info", style={"marginTop": "20px"}),
+
+            html.Button("保存数据", id="save-data-btn", style={"marginTop": "20px"}),
 
             # 时间周期选择
             html.Div([
@@ -189,7 +186,7 @@ app.layout = html.Div([
                         {'label': 'KDJ', 'value': 'KDJ'},
                         {'label': '成交量', 'value': 'VOL'}
                     ],
-                    value='RSI',
+                    value='VOL',
                     clearable=False
                 )
             ], style={'margin': '20px 0'}),
@@ -264,8 +261,30 @@ app.layout = html.Div([
 
     # 隐藏存储
     dcc.Store(id='stock-data'),
-    dcc.Store(id='selected-stock', data=stocks[0]['code'])
+    dcc.Store(id='selected-stock', data=stocks[0]['code']),
+
+    # 下载组件
+    dcc.Download(id="download-data")
 ])
+
+
+# 回调函数：保存数据到CSV
+# 回调函数：保存数据到CSV
+@app.callback(
+    Output("download-data", "data"),
+    Input("save-data-btn", "n_clicks"),
+    State('stock-grid', 'rowData'),
+    prevent_initial_call=True
+)
+def save_data(n_clicks, rows):
+    if n_clicks is None or rows is None:
+        return None
+
+    # 将rowData转换为DataFrame
+    df = pd.DataFrame(rows)
+
+    # 保存为CSV文件
+    return dcc.send_data_frame(df.to_csv, "股票数据.csv", index=False)
 
 # 回调函数：处理表格行选择
 @app.callback(
@@ -288,7 +307,16 @@ def select_stock_row(selected_rows):
     Input('selected-stock', 'data')
 )
 def load_stock_data(stock_code):
-    df = get_stock_data(stock_code, "2025-01-01", "2025-05-30")
+    # 获取今天的日期
+    today = datetime.today()
+
+    # 计算60天前的日期
+    sixty_days_ago = today - timedelta(days=360)
+
+    # 格式化日期为 "YYYY-MM-DD" 格式
+    today_str = today.strftime("%Y-%m-%d")
+    sixty_days_ago_str = sixty_days_ago.strftime("%Y-%m-%d")
+    df = get_stock_data(stock_code, sixty_days_ago_str, today_str)
     return df.to_dict('records')
 
 # 回调函数：更新价格信息
