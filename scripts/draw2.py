@@ -30,7 +30,7 @@ qlib.init(provider_uri=provider_uri, region=REG_CN)
 import pandas as pd
 
 # 读取两个CSV文件
-df1 = pd.read_csv('/Users/tanggp/qlib_raw/stock_code.csv')  # 包含 code,tradeStatus,code_name,symbol
+df1 = pd.read_csv('/Users/tanggp/qlib_data/instruments/stock_code.csv')  # 包含 code,tradeStatus,code_name,symbol
 df2 = pd.read_csv("/Users/tanggp/Documents/quanta/qlib/scripts/angle_stocks.csv")  # 包含 code,last_close,close_angle,ma5_angle,volume,is_not_st,status_ok
 
 # 使用右连接 (保留csv2中所有code)
