@@ -83,7 +83,10 @@ def process_stock_file(file_path):
         df['MA5'] = talib.MA(closes, timeperiod=5)
 
         # 计算最近5根K线的角度（收盘价和MA5分别计算）
+
         df=df.tail(KLINE_NUM)
+        if "301256" in stock_code:
+            print(stock_code)
         close_angle = calculate_relative_angle(stock_code,df['close'].values)
 
         ma5_angle = calculate_relative_angle(stock_code,df['MA5'].values)
@@ -110,8 +113,7 @@ def process_stock_file(file_path):
             'status_ok': df['tradestatus'].iloc[-1] == 1,
             'downtrend': df['downtrend'].iloc[-1] if len(df) > 0 else 0
         }
-        if  "002891" in stock_code :
-            print(latest_data)
+
         return latest_data
     except Exception as e:
         print(f"处理 {file_path} 时出错: {str(e)}")
