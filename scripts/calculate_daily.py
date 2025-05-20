@@ -113,7 +113,8 @@ def process_stock_file(file_path):
             'status_ok': df['tradestatus'].iloc[-1] == 1,
             'downtrend': df['downtrend'].iloc[-1] if len(df) > 0 else 0
         }
-
+        if "301256" in stock_code:
+            print(stock_code)
         return latest_data
     except Exception as e:
         print(f"处理 {file_path} 时出错: {str(e)}")
