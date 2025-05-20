@@ -253,7 +253,7 @@ class QlibBaostockIntegration:
             print(f'获取股票代码失败！错误码：{rs.error_code}，错误信息：{rs.error_msg}')
             return False
 
-        csv_path = self.raw_data_dir / "stock_code.csv"
+        csv_path = self.qlib_dir  / "instruments/stock_code.csv"
 
         try:
             #### 处理结果集 ####
