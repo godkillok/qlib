@@ -111,7 +111,8 @@ def process_stock_file(file_path):
             'volume': df['volume'].iloc[-1],
             'is_not_st': df['isST'].iloc[-1] != 0,
             'status_ok': df['tradestatus'].iloc[-1] == 1,
-            'downtrend': df['downtrend'].iloc[-1] if len(df) > 0 else 0
+            'downtrend': df['downtrend'].iloc[-1] if len(df) > 0 else 0,
+            'close_over_ma5_8%': (closes[-1] / df['MA5'].iloc[-1] - 1)  # 新增条件
         }
         if "301256" in stock_code:
             print(stock_code)
@@ -142,7 +143,8 @@ def batch_process():
             (result_df['close_angle'] > 0) &
             (result_df['ma5_angle']*result_df['close_angle'] > 20*100) &
             (result_df['is_not_st']==0) &
-            (result_df['downtrend']<1)
+            (result_df['downtrend']<1) &
+            (result_df['close_over_ma5_8%']>0.08)  # 新增条件：收盘价未超过MA5超过8%
         ]
         # 按角度排序
         result_df = result_df.sort_values('ma5_angle', ascending=False)
