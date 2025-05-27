@@ -8,7 +8,7 @@ from tqdm import tqdm
 
 # 配置参数
 DATA_FOLDER = Path("/Users/tanggp/qlib_raw")  # CSV文件存放路径
-RESULT_FILE = './angle_stocks.csv'  # 结果输出文件
+RESULT_FILE = '/Users/tanggp/Documents/quanta/qlib/scripts/angle_stocks.csv'  # 结果输出文件
 TRADE_DAYS = 21  # 需要分析的历史交易日数
 KLINE_NUM = 5  # 计算最近K线数量
 
@@ -25,11 +25,11 @@ def calculate_relative_angle(stock_code,prices, time_unit=1):
     if "301209" in stock_code:
         print(stock_code)
     # 转换为相对涨幅（百分比）
-    base_price = prices[-1]
-    relative_prices = (prices / base_price) * 100  # 基准化为100
-
+    base_price = prices[0]
+    # relative_prices = (prices / base_price) * 100  # 基准化为100
+    relative_prices=((prices-base_price) / base_price)* 100
     # 计算线性回归斜率
-    slope = talib.LINEARREG_SLOPE(relative_prices, timeperiod=len(relative_prices))[-1]
+    slope = talib.LINEARREG_SLOPE(relative_prices[-KLINE_NUM:], timeperiod=KLINE_NUM)[-1]
 
     # 角度计算（时间单位宽度固定为1）
     angle = np.degrees(np.arctan(slope / 1))  # 因为Y轴已经是百分比单位
@@ -48,13 +48,13 @@ def calculate_angle(prices, time_unit=1):
 
     try:
         # 计算线性回归斜率
-        slope = talib.LINEARREG_SLOPE(prices[-KLINE_NUM:], timeperiod=KLINE_NUM)[-1]
-
+        angle = talib.LINEARREG_ANGLE(prices[-KLINE_NUM:], timeperiod=KLINE_NUM)[-1]
+        # talib.LINEARREG_ANGLE(relative_prices, timeperiod=len(relative_prices))[-1]
         # 计算价格比例因子（使用最近价格的1%作为基准）
-        price_scale = prices[-1] * 0.01
-
-        # 转换为角度（反正切计算）
-        angle = np.degrees(np.arctan(slope / (price_scale * time_unit)))
+        # price_scale = prices[-1] * 0.01
+        #
+        # # 转换为角度（反正切计算）
+        # angle = np.degrees(np.arctan(slope / (price_scale * time_unit)))
         return angle
     except Exception as e:
         print(f"角度计算失败: {str(e)}")
@@ -85,7 +85,7 @@ def process_stock_file(file_path):
         # 计算最近5根K线的角度（收盘价和MA5分别计算）
 
         df=df.tail(KLINE_NUM)
-        if "301256" in stock_code:
+        if "002899" in stock_code:
             print(stock_code)
         close_angle = calculate_relative_angle(stock_code,df['close'].values)
 
@@ -114,8 +114,8 @@ def process_stock_file(file_path):
             'downtrend': df['downtrend'].iloc[-1] if len(df) > 0 else 0,
             'close_over_ma5_8%': (closes[-1] / df['MA5'].iloc[-1] - 1)  # 新增条件
         }
-        if "301256" in stock_code:
-            print(stock_code)
+        if "002899" in stock_code:
+            print(latest_data)
         return latest_data
     except Exception as e:
         print(f"处理 {file_path} 时出错: {str(e)}")
@@ -141,10 +141,11 @@ def batch_process():
         # 筛选有效数据
         result_df = result_df[
             (result_df['close_angle'] > 0) &
-            (result_df['ma5_angle']*result_df['close_angle'] > 20*100) &
+            (result_df['ma5_angle']>15)  &
+            (result_df['close_angle'] > 15) &
             (result_df['is_not_st']==0) &
-            (result_df['downtrend']<1) &
-            (result_df['close_over_ma5_8%']>0.08)  # 新增条件：收盘价未超过MA5超过8%
+            (result_df['downtrend']<1)
+            # (result_df['close_over_ma5_8%']<0.08)  # 新增条件：收盘价未超过MA5超过8%
         ]
         # 按角度排序
         result_df = result_df.sort_values('ma5_angle', ascending=False)
