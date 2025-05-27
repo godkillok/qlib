@@ -44,7 +44,7 @@ merged = pd.merge(
 
 # 重命名列并筛选结果
 result = merged[["code", "close_angle", "ma5_angle", "code_name"]]
-result["embsemble"]=result["close_angle"]*result["ma5_angle"]//100
+result["embsemble"]=((result["close_angle"]+result["ma5_angle"])/2).round(1)
 result['close_angle'] = result['close_angle'].round(1)
 result['ma5_angle'] = result['ma5_angle'].round(1)
 stocks = result.to_dict(orient='records')
