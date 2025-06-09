@@ -196,9 +196,9 @@ class QlibBaostockIntegration:
         if not trading_dates:
             logging.info("无新交易日数据")
             return
-        print("需要补数据的日期",start_date, end_date)
         #下载增量数据
         symbols = self._get_symbols()
+        print("需要补数据的日期", start_date, end_date, "需要补数据的股票个数", len(symbols))
         for symbol in tqdm(symbols, desc="股票下载进度", unit="只"):
             csv_path = self.raw_data_dir / f"{symbol}.csv"
             df_old = pd.read_csv(csv_path) if csv_path.exists() else pd.DataFrame()
