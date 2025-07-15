@@ -75,10 +75,10 @@ class QlibBaostockIntegration:
         else:  # Qlib -> Baostock
             return f"{code[:2]}.{code[2:]}"
 
-    def _get_last_trading_date(self) -> str:
+    def _get_last_trading_date(self,end_date) -> str:
         """获取最后一个有效交易日（通过query_trade_dates）"""
         # 查询最近30天的日期（避免周末/节假日导致无数据）
-        end_date = datetime.now().strftime("%Y-%m-%d")
+
         start_date = (datetime.now() - timedelta(days=30)).strftime("%Y-%m-%d")
 
         rs = bs.query_trade_dates(start_date=start_date, end_date=end_date)
@@ -95,9 +95,9 @@ class QlibBaostockIntegration:
             raise ValueError("未找到有效交易日")
         return trading_dates[0]  # 返回最近的交易日
 
-    def _get_symbols(self) -> List[str]:
+    def _get_symbols(self,end_date) -> List[str]:
         """获取目标股票列表（动态更新成分股）"""
-        date = self._get_last_trading_date()
+        date = self._get_last_trading_date(end_date)
         # extra=[ "sh000300"
         # ]
         #
@@ -151,7 +151,9 @@ class QlibBaostockIntegration:
 
     def dump_all(self, years: int = 20) -> None:
         """全量模式：下载历史数据并导入Qlib"""
-        symbols = self._get_symbols()
+        now = datetime.now()
+        end_date = (now - timedelta(days=1) if now.hour < 16 else now).strftime("%Y-%m-%d")
+        symbols = self._get_symbols(end_date)
         end_date = datetime.now().strftime("%Y-%m-%d")
         start_date = (datetime.now() - timedelta(days=years * 365)).strftime("%Y-%m-%d")
 
@@ -202,7 +204,7 @@ class QlibBaostockIntegration:
             logging.info("无新交易日数据")
             return
         #下载增量数据
-        symbols = self._get_symbols()
+        symbols = self._get_symbols(end_date)
         print("需要补数据的日期", start_date, end_date, "需要补数据的股票个数", len(symbols))
         for symbol in tqdm(symbols, desc="股票下载进度", unit="只"):
             csv_path = self.raw_data_dir / f"{symbol}.csv"
