@@ -190,7 +190,12 @@ class QlibBaostockIntegration:
             last_date = max(line.strip() for line in f)
 
         start_date = (pd.to_datetime(last_date) + timedelta(days=1)).strftime("%Y-%m-%d")
-        end_date = datetime.now().strftime("%Y-%m-%d")
+
+        # end_date = datetime.now().strftime("%Y-%m-%d")
+
+
+        now = datetime.now()
+        end_date = (now - timedelta(days=1) if now.hour < 16 else now).strftime("%Y-%m-%d")
         trading_dates = self._get_trading_dates(start_date, end_date)
 
         if not trading_dates:
