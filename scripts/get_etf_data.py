@@ -13,12 +13,17 @@ os.makedirs(ETF_DIR, exist_ok=True)
 def get_trade_dates(start_date, end_date):
     bs.login()
     rs = bs.query_trade_dates(start_date=start_date, end_date=end_date)
-    dates = []
-    while rs.next():
-        if rs.get_row_data()[1] == '1':
-            dates.append(rs.get_row_data()[0])
+    if rs.error_code != '0':
+        raise ValueError(f"获取交易日历失败: {rs.error_msg}")
+
+    # 筛选交易日并排序
+    trading_dates = sorted(
+        [row[0] for row in rs.data if row[1] == '1'],  # is_trading_day=1
+        reverse=True
+    )
+
     bs.logout()
-    return dates
+    return trading_dates
 
 # 获取某天所有 ETF spot 数据
 def get_etf_spot_by_date(date_str):
@@ -38,6 +43,7 @@ def process_one_date(date_str):
     df = get_etf_spot_by_date(date_str)
     if df is None:
         return
+    print("列名:", df.columns.tolist())  # 打印列名
     df = df[SAVE_COLS]
     for _, row in df.iterrows():
         code = row["基金代码"]
@@ -54,7 +60,7 @@ def process_one_date(date_str):
             pd.DataFrame([row]).to_csv(out_path, index=False)
 
 # 模式一：全量初始化模式（dump_all）
-def run_dump_all(start_date="2010-01-01", end_date=None):
+def run_dump_all(start_date="2025-01-01", end_date=None):
     if end_date is None:
         end_date = datetime.today().strftime("%Y-%m-%d")
     trade_days = get_trade_dates(start_date, end_date)
@@ -84,7 +90,7 @@ if __name__ == "__main__":
 
     mode = sys.argv[1]
     if mode == "dump_all":
-        run_dump_all(start_date="2010-01-01")
+        run_dump_all(start_date="2025-01-01")
     elif mode == "daily_insert":
         run_daily_insert()
     else:
