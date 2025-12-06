@@ -252,7 +252,7 @@ class QlibBaostockIntegration:
 
     def get_stock_code(self):
         #### 获取证券信息 ####
-        trading_dates = '2025-05-16'
+        trading_dates = '2025-12-05'
         rs = bs.query_all_stock(day=trading_dates)
 
         # 增强错误处理
