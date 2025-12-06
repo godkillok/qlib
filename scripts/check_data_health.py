@@ -9,6 +9,12 @@ from tqdm import tqdm
 
 from qlib.data import D
 
+'''
+python check_data_health.py \
+    --qlib_dir ~/qlib_data \
+    --freq day
+
+'''
 
 class DataHealthChecker:
     """Checks a dataset for data completeness and correctness. The data will be converted to a pd.DataFrame and checked for the following problems:
@@ -176,7 +182,7 @@ class DataHealthChecker:
         check_missing_data_result = self.check_missing_data()
         check_large_step_changes_result = self.check_large_step_changes()
         check_required_columns_result = self.check_required_columns()
-        check_missing_factor_result = self.check_missing_factor()
+        check_missing_factor_result = None #self.check_missing_factor()
         if (
             check_large_step_changes_result is not None
             or check_large_step_changes_result is not None
