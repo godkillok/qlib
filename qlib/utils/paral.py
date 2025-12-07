@@ -18,6 +18,7 @@ from qlib.config import C, QlibConfig
 
 class ParallelExt(Parallel):
     def __init__(self, *args, **kwargs):
+        self._backend_args = {}
         maxtasksperchild = kwargs.pop("maxtasksperchild", None)
         super(ParallelExt, self).__init__(*args, **kwargs)
         if isinstance(self._backend, MultiprocessingBackend):
