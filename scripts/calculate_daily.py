@@ -7,8 +7,8 @@ from pathlib import Path
 from tqdm import tqdm
 
 # 配置参数
-DATA_FOLDER = Path("/Users/tanggp/qlib_raw")  # CSV文件存放路径
-RESULT_FILE = '/Users/tanggp/Documents/quanta/qlib/scripts/angle_stocks.csv'  # 结果输出文件
+DATA_FOLDER = Path("/Users/tangguoping/qlib_raw")  # CSV文件存放路径
+RESULT_FILE = '/Users/tangguoping/Documents/work/qlib-main/scripts/angle_stocks.csv'  # 结果输出文件
 TRADE_DAYS = 21  # 需要分析的历史交易日数
 KLINE_NUM = 5  # 计算最近K线数量
 
