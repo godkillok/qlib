@@ -15,7 +15,7 @@ import numpy as np
 from datetime import datetime, timedelta
 
 # 初始化QLib数据源
-provider_uri = "/Users/tanggp/qlib_data/"
+provider_uri = "/Users/tangguoping/qlib_data/"
 qlib.init(provider_uri=provider_uri, region=REG_CN)
 
 # 股票列表
