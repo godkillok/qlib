@@ -15,7 +15,8 @@ import numpy as np
 from datetime import datetime, timedelta
 
 # 初始化QLib数据源
-provider_uri = "/Users/tangguoping/qlib_data/"
+parent_folder="/Users/tangguoping/"
+provider_uri = parent_folder+"qlib_data/"
 qlib.init(provider_uri=provider_uri, region=REG_CN)
 
 # 股票列表
@@ -30,8 +31,8 @@ qlib.init(provider_uri=provider_uri, region=REG_CN)
 import pandas as pd
 
 # 读取两个CSV文件
-df1 = pd.read_csv('/Users/tanggp/qlib_data/instruments/stock_code.csv')  # 包含 code,tradeStatus,code_name,symbol
-df2 = pd.read_csv("/Users/tanggp/Documents/quanta/qlib/scripts/angle_stocks.csv")  # 包含 code,last_close,close_angle,ma5_angle,volume,is_not_st,status_ok
+df1 = pd.read_csv(parent_folder+'qlib_data/instruments/stock_code.csv')  # 包含 code,tradeStatus,code_name,symbol
+df2 = pd.read_csv("/Users/tangguoping/Documents/work/qlib-main/scripts/angle_stocks.csv")  # 包含 code,last_close,close_angle,ma5_angle,volume,is_not_st,status_ok
 
 # 使用右连接 (保留csv2中所有code)
 merged = pd.merge(

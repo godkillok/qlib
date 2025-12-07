@@ -316,6 +316,7 @@ class QlibBaostockIntegration:
 if __name__ == "__main__":
     import fire
     '''
+    python3  qlib_baostock.py  get_stock_code
     python3  qlib_baostock.py  dump_all
     python3  qlib_baostock.py  daily_insert
     '''
