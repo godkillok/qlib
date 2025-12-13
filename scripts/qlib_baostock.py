@@ -62,6 +62,7 @@ class QlibBaostockIntegration:
                     # timeout=self.cfg.TIMEOUT
                 )
                 if self.bs.error_code == '0':
+                    print(self.bs)
                     return
                 time.sleep(2)
             except Exception as e:
@@ -183,7 +184,9 @@ class QlibBaostockIntegration:
     def daily_insert(self) -> None:
         """增量模式：更新当日数据"""
         # 获取Qlib最新日期
+        print("开始获取Qlib最新日期")
         calendar_file = self.qlib_dir / "calendars" / f"{self.cfg.FREQ_QLIAB}.txt"
+
 
         if not calendar_file.exists():
             raise FileNotFoundError(calendar_file,"请先运行dump_all初始化数据")
@@ -199,13 +202,14 @@ class QlibBaostockIntegration:
         now = datetime.now()
         end_date = (now - timedelta(days=1) if now.hour < 16 else now).strftime("%Y-%m-%d")
         trading_dates = self._get_trading_dates(start_date, end_date)
+        print("🚀"*2,"trading_dates,start_date, end_date: ",trading_dates,start_date, end_date)
 
         if not trading_dates:
             logging.info("无新交易日数据")
             return
         #下载增量数据
         symbols = self._get_symbols(end_date)
-        print("需要补数据的日期", start_date, end_date, "需要补数据的股票个数", len(symbols))
+        print("🚀"*2,"需要补数据的日期", start_date, end_date, "需要补数据的股票个数", len(symbols))
         for symbol in tqdm(symbols, desc="股票下载进度", unit="只"):
             csv_path = self.raw_data_dir / f"{symbol}.csv"
             df_old = pd.read_csv(csv_path) if csv_path.exists() else pd.DataFrame()
